@@ -1,4 +1,4 @@
-# Headroom Dashboard
+# HeadroomWebUI
 
 Headroom 代理的本地 Web 配置中心与监控看板。
 
