@@ -283,6 +283,11 @@ def index():
     return send_from_directory(app.static_folder, "index.html")
 
 
+@app.route("/assets/<path:filename>")
+def serve_asset(filename):
+    return send_from_directory("static", filename)
+
+
 @app.route("/api/config/pricing")
 def api_config_pricing():
     """返回 DeepSeek V4 定价信息"""

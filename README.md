@@ -1,4 +1,4 @@
-# HeadroomWebUI
+# Headroom Dashboard
 
 [**English**](#english) · [**中文**](#chinese)
 
