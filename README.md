@@ -53,7 +53,7 @@ docker run -d --name headroom --restart unless-stopped -p 8787:8787 ghcr.io/chop
 #### 3. Clone and start the WebUI
 
 ```bash
-git clone https://github.com/diyu331/HeadroomWebUI.git
+git clone https://github.com/diyu331/HeadroomDashboard.git
 cd HeadroomWebUI
 ```
 
@@ -189,7 +189,7 @@ docker run -d --name headroom --restart unless-stopped -p 8787:8787 ghcr.io/chop
 #### 3. 克隆并启动 WebUI
 
 ```bash
-git clone https://github.com/diyu331/HeadroomWebUI.git
+git clone https://github.com/diyu331/HeadroomDashboard.git
 cd HeadroomWebUI
 ```
 
