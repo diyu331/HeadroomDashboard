@@ -52,15 +52,29 @@ docker run -d --name headroom --restart unless-stopped -p 8787:8787 ghcr.io/chop
 # 克隆仓库
 git clone https://github.com/diyu331/HeadroomWebUI.git
 cd HeadroomWebUI
+```
 
-# 创建虚拟环境（推荐，避免冲突）
+**方式 A：pip + venv（推荐，轻量）**
+```bash
+# 创建虚拟环境
 python -m venv venv
-
-# 激活虚拟环境
-# Windows 用户执行:
+# Windows 激活:
 venv\Scripts\activate
-# macOS / Linux 用户执行:
+# macOS / Linux 激活:
 # source venv/bin/activate
+
+# 安装依赖
+pip install flask requests
+
+# 启动
+python app.py
+```
+
+**方式 B：conda / miniconda（如果你在用 Anaconda）**
+```bash
+# 创建虚拟环境（指定 Python 版本）
+conda create -n headroom-webui python=3.12 -y
+conda activate headroom-webui
 
 # 安装依赖
 pip install flask requests
