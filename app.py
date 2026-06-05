@@ -98,7 +98,7 @@ CONFIG_PARAMS = [
      "category": "mode", "label": "优化模式",
      "options": [{"value": "token", "label": "Token 优先（最大压缩）"},
                  {"value": "cache", "label": "Cache 优先（提高缓存命中）"}]},
-    {"key": "port", "flag": "-p", "type": "number", "default": "8787",
+    {"key": "port", "flag": "--port", "type": "number", "default": "8787",
      "category": "mode", "label": "监听端口"},
     {"key": "workers", "flag": "--workers", "type": "number", "default": "1",
      "category": "mode", "label": "工作进程数"},
@@ -230,10 +230,11 @@ def get_headroom_config_from_inspect():
 
 
 def build_docker_run_args(params):
-    args = ["run", "-d", "--name", HEADROOM_CONTAINER,
-            "--restart", "unless-stopped",
-            "-p", "8787:8787",
-            "-v", f"{os.path.expanduser('~')}/.headroom:/root/.headroom"]
+    # Docker 选项（镜像名前）
+    docker_opts = ["run", "-d", "--name", HEADROOM_CONTAINER,
+                   "--restart", "unless-stopped",
+                   "-p", "8787:8787",
+                   "-v", f"{os.path.expanduser('~')}/.headroom:/root/.headroom"]
 
     env_vars = {}
     if params.get("anthropic-api-url"):
@@ -243,25 +244,26 @@ def build_docker_run_args(params):
                "no-telemetry", "log-messages"}
     bool_off = {"no-optimize", "no-cache", "no-rate-limit"}
 
+    # Headroom 容器参数（镜像名后，作为 CMD 参数传入）
+    headroom_args = []
     for p in CONFIG_PARAMS:
         key = p["key"]
         if key in params:
             val = params[key]
             if p["type"] == "bool":
                 if key in bool_on and str(val).lower() in ("true", "1", "on", "yes"):
-                    args.append(p["flag"])
+                    headroom_args.append(p["flag"])
                 elif key in bool_off and str(val).lower() in ("true", "1", "on", "yes"):
-                    args.append(p["flag"])
+                    headroom_args.append(p["flag"])
             elif p["type"] in ("text", "number", "select"):
                 if val is not None and str(val).strip():
-                    args.append(p["flag"])
-                    args.append(str(val).strip())
+                    headroom_args.append(p["flag"])
+                    headroom_args.append(str(val).strip())
 
     for k, v in env_vars.items():
-        args.extend(["-e", f"{k}={v}"])
+        docker_opts.extend(["-e", f"{k}={v}"])
 
-    args.append("ghcr.io/chopratejas/headroom:latest")
-    return args
+    return docker_opts + ["ghcr.io/chopratejas/headroom:latest"] + headroom_args
 
 
 def recreate_container(params):

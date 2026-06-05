@@ -79,7 +79,8 @@ python app.py
 
 Open `http://localhost:5000` in your browser.
 
-> **Windows users:** You can also double-click `start.bat`.
+> **Windows users:** You can also double-click `HDStart.bat` (or `start.bat`).  
+> The script will auto-detect Python, start the Headroom container (if Docker is running), and launch the web server — one click, no terminal commands needed.
 
 #### 4. Route Claude Code through Headroom
 

@@ -31,6 +31,36 @@ if %errorlevel% neq 0 (
     )
 )
 
+:: ─── Headroom Container ─────────────────────────────────────────────
+echo [INFO] Checking Headroom container...
+docker inspect headroom --format "{{.State.Status}}" 2>nul >nul
+if %errorlevel% equ 0 (
+    :: Container exists
+    for /f "usebackq tokens=*" %%s in (`docker inspect headroom --format "{{.State.Status}}"`) do (
+        if "%%s"=="running" (
+            echo [OK] Headroom container is running.
+        ) else (
+            echo [INFO] Starting existing Headroom container...
+            docker start headroom >nul
+            if %errorlevel% equ 0 (
+                echo [OK] Headroom container started.
+            ) else (
+                echo [WARN] Failed to start Headroom container.
+            )
+        )
+    )
+) else (
+    echo [INFO] Creating Headroom container...
+    docker run -d --name headroom --restart unless-stopped ^
+        -p 8787:8787 ^
+        ghcr.io/chopratejas/headroom:latest >nul
+    if %errorlevel% equ 0 (
+        echo [OK] Headroom container created.
+    ) else (
+        echo [WARN] Failed to create Headroom container. Docker Desktop running?
+    )
+)
+
 :: Start Flask
 echo [INFO] Starting web server...
 start "" http://localhost:5000
