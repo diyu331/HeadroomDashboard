@@ -11,7 +11,7 @@ from flask import Flask, jsonify, request, send_from_directory
 
 app = Flask(__name__, static_folder="templates")
 
-DOCKER_PATH = r"D:\developer_tools\DockerDesktop\resources\bin\docker.exe"
+DOCKER_PATH = os.environ.get("DOCKER_PATH", "docker")
 PROFILE_PATH = os.path.expanduser(r"~\Documents\WindowsPowerShell\profile.ps1")
 CLAUDE_SETTINGS_PATH = os.path.expanduser(r"~\.claude\settings.json")
 
