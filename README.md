@@ -4,121 +4,150 @@ Headroom 代理的本地 Web 配置中心与监控看板。
 
 [Headroom](https://github.com/chopratejas/headroom) 是一个 Claude Code 上下文压缩代理，位于 Claude Code 与 API 后端之间，通过智能压缩减少 token 消耗、降低延迟和成本。
 
-**这个 Dashboard 解决什么问题：**
-- Headroom 只有 CLI 参数，没有图形界面，每次改配置要敲一长串 `docker run` 命令
-- 看不到实时的压缩统计、缓存命中率、压缩策略分布
-- 切换 Claude Code 的路由（代理/直连）需要手动改环境变量
+**没有 WebUI 之前：**
+- Headroom 只有 CLI 参数，每次改配置都要敲一长串 `docker run ...` 命令
+- 想看压缩效果？敲 `curl http://localhost:8787/stats` 看 JSON
+- 想切换 Claude Code 路由？手动改配置文件
+- 想看日志？`docker logs headroom`
 
-**Dashboard 一站式搞定：**
-- 📊 实时监控看板 — 压缩率、节省 tokens、请求健康、延迟
-- ⚙️ 可视化参数配置 — 通过表单配置 Headroom，一键保存重启容器
-- 🔀 路由切换 — 在「Headroom 代理」和「直连 DeepSeek」之间一键切换
-- 📋 容器日志查看 — 无需敲 `docker logs`
+**有了 WebUI：**
+- 📊 实时看板 — 压缩率、节省 tokens、请求健康、延迟一目了然
+- ⚙️ 可视化配置 — 表单填写参数，一键保存并自动重启容器
+- 🔀 一键切换路由 — 「Headroom 代理」↔「直连 DeepSeek」
+- 📋 在线日志 — 自带高亮和下载
 
 ## 快速启动
 
-### 环境要求
+### 第一步：检查环境
 
-- **Python 3.12+** — [python.org](https://www.python.org/downloads/)
-- **Docker Desktop** — Headroom 容器运行在 Docker 中
-- **Docker CLI** 可在命令行中直接调用（`docker ps` 能正常执行）
-
-### 克隆并启动
+打开终端（cmd / PowerShell），依次确认：
 
 ```bash
-# 1. 克隆仓库
+# 1. Python 装了没
+python --version
+# 应该输出 Python 3.12+
+
+# 2. Docker 装了没
+docker ps
+# 应该输出容器列表（或空列表），而不是报错
+```
+
+如果没有，先去安装：
+- [Python 3.12+](https://www.python.org/downloads/)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+### 第二步：启动 Headroom 容器
+
+WebUI 是管理 Headroom 的，所以 Headroom 本身要先跑起来：
+
+```bash
+docker run -d --name headroom --restart unless-stopped -p 8787:8787 ghcr.io/chopratejas/headroom:latest
+```
+
+> 第一次运行会自动拉取镜像。启动后访问 `http://localhost:8787/health` 应该返回 `{"status":"healthy"}`。
+
+### 第三步：克隆并启动 WebUI
+
+```bash
+# 克隆仓库
 git clone https://github.com/diyu331/HeadroomWebUI.git
 cd HeadroomWebUI
 
-# 2. 创建虚拟环境（可选但推荐）
+# 创建虚拟环境（推荐，避免冲突）
 python -m venv venv
-# Windows: venv\Scripts\activate
-# macOS/Linux: source venv/bin/activate
 
-# 3. 安装依赖
+# 激活虚拟环境
+# Windows 用户执行:
+venv\Scripts\activate
+# macOS / Linux 用户执行:
+# source venv/bin/activate
+
+# 安装依赖
 pip install flask requests
 
-# 4. 启动
+# 启动
 python app.py
 ```
 
-浏览器打开 `http://localhost:5000`。
+浏览器打开 `http://localhost:5000`，正常就能看到看板了。
 
-### 方式二：双击启动
+> **Windows 用户也可以直接双击 `start.bat`**，效果同上。
 
-确保 `docker` 命令和 `python` 命令在系统 PATH 中，然后双击 `start.bat`。
+### 第四步：把 Claude Code 路由到 Headroom
 
-## 功能详情
+在看板中打开 **配置 → 系统环境配置**，点击 **Headroom 代理** 按钮，保存。
+
+然后在 Claude Code 的配置文件中（`~\.claude\settings.json`），`ANTHROPIC_BASE_URL` 会自动更新为 `http://localhost:8787`。
+
+> 已有 Claude Code 会话需要退出重启。新会话的请求就会经过 Headroom 压缩了。
+
+## 功能说明
 
 ### 状态看板
 
-| 卡片 | 说明 |
-|------|------|
-| 运行状态 | 容器健康状态、运行时间、版本号 |
-| 压缩统计 | 总节省 Tokens、压缩率、压缩前后对比 |
-| 请求健康 | 成功率、缓存数、失败数、限流数 |
-| 请求概览 | 总请求数、压缩缓存命中率、平均延迟 |
+四张卡片实时展示：
 
-页面底部显示压缩策略分布（Kompress / 文本 / 搜索 / 智能粉碎 等）和按模型拆分的压缩明细。
+| 卡片 | 内容 |
+|------|------|
+| 运行状态 | 容器是否健康、运行了多久、版本号 |
+| 压缩统计 | 总共节省了多少 tokens、压缩率、压缩前后对比 |
+| 请求健康 | 成功率、缓存命中、失败数、限流数 |
+| 请求概览 | 总请求数、平均延迟 |
+
+页面下方还有压缩策略分布图和按模型拆分的压缩明细。
 
 ### 配置中心
 
-**系统环境配置**
-- 一键切换 Claude Code 路由：Headroom 代理 ↔ 直连 DeepSeek ↔ 自定义
-- 自动写入 `~/.claude/settings.json`，立即生效
-- 同时写入系统环境变量和 `profile.ps1`（兼容 PowerShell）
+**系统环境配置** — 切换 Claude Code 的路由（代理或直连），自动写入配置文件。
 
-**Headroom 代理参数**
-按分类展示所有可配置参数：
-- 运行模式（token 优先 / cache 优先）
-- 优化开关（压缩、缓存、限流、AST 压缩、代码图谱等）
-- 记忆（持久记忆、存储方式、记忆条数）
-- 直连与后端（自定义 API 地址、后端选择、云区域）
-- 预算与日志
+**Headroom 参数** — 按分类展示所有参数（运行模式、优化开关、记忆、后端、日志等），修改后一键保存并自动重建容器。
 
-修改参数后一键保存并自动重建容器（`docker stop → rm → run`）。
-
-**配置快照**
-显示当前容器启动命令、环境变量、profile.ps1 配置节。
+**配置快照** — 显示当前容器的启动命令和环境变量，方便复盘。
 
 ### 日志
 
-查看 Headroom 容器最近日志，支持按级别高亮（WARN/ERROR）、一键下载。
+实时查看 Headroom 容器日志，WARN 和 ERROR 会高亮显示，支持下载。
 
-## 技术架构
+## 工作原理
 
 ```
-┌─────────────────────────────────────────────────────┐
-│              浏览器 (http://localhost:5000)           │
-├─────────────────────────────────────────────────────┤
-│               Flask 后端 (app.py)                     │
-│  ┌──────────┐  ┌─────────────┐  ┌────────────────┐  │
-│  │ 监控 API  │  │ 配置管理 API  │  │ 容器控制 API    │  │
-│  └────┬─────┘  └──────┬──────┘  └───────┬────────┘  │
-├───────┼───────────────┼──────────────────┼───────────┤
-│       │               │                  │            │
-│  Headroom API     settings.json /     Docker CLI      │
-│  /health /stats   profile.ps1 /      docker stop/rm  │
-│                   系统环境变量        /restart/start  │
-└──────────────────────────────────────────────────────┘
+你操作浏览器 (localhost:5000)
+      │
+      ▼
+   Flask 后端 (app.py)
+      │
+      ├── 读取/写入 ~\.claude\settings.json（路由配置）
+      ├── 调用 Docker CLI 控制 Headroom 容器
+      └── 调用 Headroom API (localhost:8787) 获取统计数据
 ```
 
-| 层 | 技术 |
-|---|---|
-| 后端 | Python 3.12 + Flask |
-| 前端 | 单页 HTML + Tailwind CSS (CDN) + 原生 JavaScript |
-| 容器控制 | Docker CLI 子进程调用 |
-| 配置持久化 | settings.json / profile.ps1 / 系统环境变量 |
+| 技术 | 用途 |
+|------|------|
+| Python + Flask | 后端 API |
+| Tailwind CSS + 原生 JS | 前端界面 |
+| Docker CLI | 容器启停和重建 |
+| settings.json / profile.ps1 | 配置持久化 |
 
-## Docker 路径配置
+## Docker 路径自定义
 
-Dashboard 默认调用系统 `docker` 命令。如果你的 Docker CLI 不在 PATH 中，可以设置环境变量：
+如果 `docker` 命令不在系统 PATH 中，可以设置环境变量：
 
 ```bash
 set DOCKER_PATH=C:\Program Files\Docker\Docker\resources\bin\docker.exe
 ```
 
-或者在系统配置页面填写。
+或者在 WebUI 配置页面的「系统环境配置」中填写。
+
+## 常见问题
+
+**Q: 看板上全是 0？**
+A: 说明还没有 Claude Code 请求经过 Headroom。确认 Claude Code 的 `ANTHROPIC_BASE_URL` 已设为 `http://localhost:8787`，然后新开一个窗口用 Claude Code 发条消息。
+
+**Q: 修改 Headroom 参数后容器没重启？**
+A: 检查 Docker Desktop 是否在运行。WebUI 会执行 `docker stop → rm → run`，Docker 不可用时无法重建。
+
+**Q: 怎么关掉？**
+A: 关掉运行 `python app.py` 的终端窗口就行。Headroom 容器不受影响，下次启动 WebUI 还会连上。
 
 ## 修改记录
 
