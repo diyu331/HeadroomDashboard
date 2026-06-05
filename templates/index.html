@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Headroom Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', system-ui, sans-serif; }
+        .tab-btn.active { border-bottom: 2px solid #6366f1; color: #6366f1; font-weight: 600; }
+        .tab-btn { transition: all 0.2s; cursor: pointer; }
+        .card { transition: transform .15s, box-shadow .15s; }
+        .card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+        .bar { transition: width .6s ease; }
+        .toast { animation: slideIn .3s ease, fadeOut .3s ease 2.7s forwards; }
+        @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; transform: translateY(-20px); } }
+        .log-line:hover { background: #f1f5f9; }
+        .spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .config-section { border: 1px solid #e5e7eb; border-radius: .75rem; padding: 1.25rem; margin-bottom: 1rem; }
+        .param-row { display: flex; align-items: center; padding: .5rem 0; border-bottom: 1px solid #f3f4f6; }
+        .param-row:last-child { border-bottom: none; }
+        .param-label { flex: 0 0 200px; font-size: .875rem; color: #374151; }
+        .param-input { flex: 1; }
+        .param-input input[type="text"], .param-input input[type="number"], .param-input select {
+            width: 100%; padding: .375rem .75rem; border: 1px solid #d1d5db; border-radius: .375rem; font-size: .875rem;
+        }
+        .param-input input:focus, .param-input select:focus { outline: none; border-color: #6366f1; ring: 2px solid #6366f1; }
+        .toggle { position: relative; width: 44px; height: 24px; cursor: pointer; display: inline-block; }
+        .toggle input { display: none; }
+        .toggle-slider { position: absolute; inset: 0; background: #d1d5db; border-radius: 12px; transition: .3s; }
+        .toggle-slider::before { content: ''; position: absolute; width: 20px; height: 20px; left: 2px; bottom: 2px;
+            background: white; border-radius: 50%; transition: .3s; }
+        .toggle input:checked + .toggle-slider { background: #6366f1; }
+        .toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<nav class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white text-sm font-bold">H</div>
+                <span class="text-lg font-semibold text-gray-900">Headroom Dashboard</span>
+            </div>
+            <div class="flex items-center gap-1" id="tabNav">
+                <button class="tab-btn active px-4 py-2 text-sm text-gray-500" data-tab="dashboard">
+                    <i class="fas fa-chart-pie mr-1.5"></i>状态
+                </button>
+                <button class="tab-btn px-4 py-2 text-sm text-gray-500" data-tab="config">
+                    <i class="fas fa-cog mr-1.5"></i>配置
+                </button>
+                <button class="tab-btn px-4 py-2 text-sm text-gray-500" data-tab="logs">
+                    <i class="fas fa-list mr-1.5"></i>日志
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div id="toast" class="fixed top-4 right-4 z-50 hidden"></div>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- Tab: Dashboard -->
+    <div class="tab-content active" id="tab-dashboard">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-800"><i class="fas fa-chart-pie text-indigo-500 mr-2"></i>状态看板</h2>
+            <div class="flex items-center gap-3">
+                <span id="lastUpdate" class="text-xs text-gray-400"></span>
+                <button onclick="refreshDashboard()" class="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition">
+                    <i class="fas fa-sync-alt text-xs"></i>刷新
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="cardsContainer">
+            <div class="card bg-white rounded-xl p-5 border border-gray-200" id="cardStatus">
+                <div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-3">
+                    <i class="fas fa-heartbeat"></i><span>运行状态</span>
+                </div>
+                <div id="cardStatusContent" class="space-y-1.5 text-sm">
+                    <div class="animate-pulse h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div class="animate-pulse h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+            </div>
+            <div class="card bg-white rounded-xl p-5 border border-gray-200" id="cardCompression">
+                <div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-3">
+                    <i class="fas fa-compress-alt"></i><span>压缩统计</span>
+                </div>
+                <div id="cardCompressionContent" class="space-y-1.5 text-sm">
+                    <div class="animate-pulse h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div class="animate-pulse h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+            </div>
+            <div class="card bg-white rounded-xl p-5 border border-gray-200" id="cardHealth">
+                <div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-3">
+                    <i class="fas fa-heart-circle-check"></i><span>请求健康</span>
+                </div>
+                <div id="cardHealthContent" class="space-y-1.5 text-sm">
+                    <div class="animate-pulse h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div class="animate-pulse h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+            </div>
+            <div class="card bg-white rounded-xl p-5 border border-gray-200" id="cardRequests">
+                <div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-3">
+                    <i class="fas fa-exchange-alt"></i><span>请求概览</span>
+                </div>
+                <div id="cardRequestsContent" class="space-y-1.5 text-sm">
+                    <div class="animate-pulse h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div class="animate-pulse h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-5 border border-gray-200 mb-6">
+            <h3 class="text-sm font-medium text-gray-700 mb-3"><i class="fas fa-server text-indigo-400 mr-2"></i>容器控制</h3>
+            <div class="flex items-center gap-3" id="controlButtons">
+                <button onclick="containerAction('restart')" class="px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 text-sm flex items-center gap-2 transition">
+                    <i class="fas fa-redo-alt"></i>重启
+                </button>
+                <button onclick="containerAction('stop')" class="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 text-sm flex items-center gap-2 transition">
+                    <i class="fas fa-stop"></i>停止
+                </button>
+                <button onclick="containerAction('start')" class="px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 text-sm flex items-center gap-2 transition">
+                    <i class="fas fa-play"></i>启动
+                </button>
+                <span id="controlResult" class="text-xs text-gray-400"></span>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-5 border border-gray-200">
+            <h3 class="text-sm font-medium text-gray-700 mb-3"><i class="fas fa-chart-bar text-indigo-400 mr-2"></i>压缩策略分布</h3>
+            <div id="strategyBars" class="space-y-2.5">
+                <div class="animate-pulse h-5 bg-gray-200 rounded w-full"></div>
+                <div class="animate-pulse h-5 bg-gray-200 rounded w-full"></div>
+                <div class="animate-pulse h-5 bg-gray-200 rounded w-full"></div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-5 border border-gray-200">
+            <h3 class="text-sm font-medium text-gray-700 mb-3"><i class="fas fa-calculator text-indigo-400 mr-2"></i>按模型压缩明细</h3>
+            <div id="modelCosts" class="space-y-3">
+                <div class="animate-pulse h-20 bg-gray-100 rounded"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Config -->
+    <div class="tab-content" id="tab-config">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-800"><i class="fas fa-cog text-indigo-500 mr-2"></i>配置中心</h2>
+            <div class="flex items-center gap-2">
+                <span id="configSaveStatus" class="text-xs text-gray-400"></span>
+                <button onclick="loadConfig()" class="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition">
+                    <i class="fas fa-sync-alt text-xs"></i>刷新
+                </button>
+            </div>
+        </div>
+
+        <div class="config-section bg-white">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-medium text-gray-800"><i class="fas fa-globe text-indigo-400 mr-2"></i>系统环境配置</h3>
+                <span id="routeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"></span>
+            </div>
+
+            <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <div class="text-xs text-gray-500 mb-2">当前路由</div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="flex flex-col">
+                            <span id="routeEffectiveUrl" class="text-sm font-mono text-gray-700"></span>
+                            <span id="routeConfigSource" class="text-xs text-gray-400"></span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2" id="routeToggleButtons">
+                        <button onclick="toggleRoute('headroom')"
+                            class="px-3 py-1.5 text-xs rounded-lg border transition flex items-center gap-1.5 route-btn"
+                            data-route="headroom">
+                            <i class="fas fa-shield-alt"></i>Headroom 代理
+                        </button>
+                        <button onclick="toggleRoute('direct')"
+                            class="px-3 py-1.5 text-xs rounded-lg border transition flex items-center gap-1.5 route-btn"
+                            data-route="direct">
+                            <i class="fas fa-plug"></i>直连 DeepSeek
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <div class="param-row">
+                    <div class="param-label"><i class="fas fa-route text-gray-400 w-4 mr-1.5"></i>自定义路由</div>
+                    <div class="param-input">
+                        <select id="sysRouteSelect" onchange="onRouteChange()">
+                            <option value="http://localhost:8787">通过 Headroom 代理 (localhost:8787)</option>
+                            <option value="https://api.deepseek.com/anthropic">直连 DeepSeek</option>
+                            <option value="__custom__">自定义</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="param-row">
+                    <div class="param-label"><i class="fas fa-link text-gray-400 w-4 mr-1.5"></i>ANTHROPIC_BASE_URL</div>
+                    <div class="param-input">
+                        <input type="text" id="sysAnthropicUrl" placeholder="https://api.deepseek.com/anthropic" />
+                    </div>
+                </div>
+                <div class="param-row">
+                    <div class="param-label"><i class="fas fa-file-code text-gray-400 w-4 mr-1.5"></i>配置位置</div>
+                    <div class="param-input">
+                        <div class="flex flex-wrap gap-2 text-xs" id="configLocations"></div>
+                    </div>
+                </div>
+                <div class="flex justify-end pt-2">
+                    <button onclick="saveSystemConfig()" class="px-4 py-2 bg-indigo-500 text-white text-sm rounded-lg hover:bg-indigo-600 transition flex items-center gap-2">
+                        <i class="fas fa-save"></i>保存系统配置
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section bg-white">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-medium text-gray-800"><i class="fas fa-sliders-h text-indigo-400 mr-2"></i>Headroom 代理参数</h3>
+            </div>
+            <div id="headroomParamsContainer">
+                <div class="text-center py-8 text-gray-400"><i class="fas fa-spinner spinner mr-2"></i>加载参数...</div>
+            </div>
+            <div class="flex justify-end pt-3 border-t border-gray-100 mt-3">
+                <button onclick="saveHeadroomConfig()" class="px-4 py-2 bg-indigo-500 text-white text-sm rounded-lg hover:bg-indigo-600 transition flex items-center gap-2">
+                    <i class="fas fa-redo-alt"></i>保存并重启容器
+                </button>
+            </div>
+        </div>
+
+        <div class="config-section bg-white">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-medium text-gray-800"><i class="fas fa-camera text-indigo-400 mr-2"></i>配置快照</h3>
+                <button onclick="loadSnapshot()" class="text-xs text-indigo-500 hover:text-indigo-700"><i class="fas fa-sync-alt mr-1"></i>刷新</button>
+            </div>
+            <div id="snapshotContent" class="text-xs text-gray-500">
+                <div class="animate-pulse h-12 bg-gray-100 rounded"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Logs -->
+    <div class="tab-content" id="tab-logs">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-semibold text-gray-800"><i class="fas fa-list text-indigo-500 mr-2"></i>容器日志</h2>
+            <div class="flex items-center gap-2">
+                <span id="logLineCount" class="text-xs text-gray-400"></span>
+                <button onclick="refreshLogs()" class="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition">
+                    <i class="fas fa-sync-alt text-xs"></i>刷新
+                </button>
+                <button onclick="downloadLogs()" class="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition">
+                    <i class="fas fa-download text-xs"></i>下载
+                </button>
+            </div>
+        </div>
+        <div class="bg-gray-900 rounded-xl p-4 border border-gray-700" style="min-height: 400px;">
+            <pre id="logContent" class="text-xs text-gray-300 font-mono whitespace-pre-wrap overflow-auto" style="max-height: 600px;">
+                <div class="animate-pulse text-gray-500">正在加载日志...</div>
+            </pre>
+        </div>
+    </div>
+
+</main>
+
+<script>
+    // ─── Tab Switching ─────────────────────────────────────────────────────
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+            if (btn.dataset.tab === 'dashboard') refreshDashboard();
+            if (btn.dataset.tab === 'config') loadConfig();
+            if (btn.dataset.tab === 'logs') refreshLogs();
+        });
+    });
+
+    // ─── Toast ─────────────────────────────────────────────────────────────
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
+        toast.className = `fixed top-4 right-4 z-50 toast ${colors[type] || 'bg-gray-700'} text-white px-4 py-2.5 rounded-lg shadow-lg text-sm flex items-center gap-2`;
+        const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
+        toast.innerHTML = `<i class="fas ${icons[type] || 'fa-info-circle'}"></i> ${message}`;
+        toast.classList.remove('hidden');
+        setTimeout(() => { toast.classList.add('hidden'); }, 3000);
+    }
+
+    // ─── Format Helpers ─────────────────────────────────────────────────────
+    function fmtNum(n) {
+        if (n == null || isNaN(n)) return '0';
+        if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+        if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+        return Math.round(n).toLocaleString();
+    }
+
+    function fmtTime(s) {
+        if (!s) return '-';
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+        if (h > 0) return `${h}h${m}m`;
+        return `${m}m${Math.floor(s % 60)}s`;
+    }
+
+    function fmtPct(v) { return (v * 100).toFixed(1) + '%'; }
+
+    function fmtMoney(v) {
+        if (v == null || v === 0) return '$0.00';
+        if (Math.abs(v) < 0.01) return '<$0.01';
+        return '$' + v.toFixed(2);
+    }
+
+    function fmtCNY(v) {
+        if (v == null || v === 0) return '¥0.00';
+        if (Math.abs(v) < 0.01) return '<¥0.01';
+        return '¥' + v.toFixed(2);
+    }
+
+    function fmtSmallMoney(v) {
+        if (v == null || v === 0) return '$0.00';
+        if (v < 0.01) return '$' + v.toFixed(4);
+        if (v < 1) return '$' + v.toFixed(3);
+        return '$' + v.toFixed(2);
+    }
+
+    // ─── Dashboard ─────────────────────────────────────────────────────────
+    async function refreshDashboard() {
+        document.getElementById('lastUpdate').textContent = '正在加载...';
+        try {
+            const res = await fetch('/api/stats');
+            const data = await res.json();
+            renderCards(data);
+            renderStrategies(data);
+            renderModelCosts(data);
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        } catch (e) {
+            document.getElementById('lastUpdate').textContent = '加载失败';
+            showToast('加载状态失败: ' + e.message, 'error');
+        }
+    }
+
+    function renderCards(data) {
+        const c = data.container || {};
+        const h = data.health || {};
+        const s = data.stats || {};
+
+        const isHealthy = c.running && h.status === 'healthy';
+        const uptime = h.uptime_seconds || 0;
+        document.getElementById('cardStatusContent').innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full ${isHealthy ? 'bg-green-500' : c.running ? 'bg-yellow-400' : 'bg-red-400'}"></span>
+                <span class="font-medium ${isHealthy ? 'text-green-700' : c.running ? 'text-yellow-700' : 'text-red-700'}">
+                    ${isHealthy ? '健康' : c.running ? '启动中' : '已停止'}
+                </span>
+            </div>
+            <div class="text-gray-500">运行 ${fmtTime(uptime)}</div>
+            <div class="text-gray-400 text-xs">v${h.version || '-'} ${c.container_id ? '· ' + c.container_id.slice(0, 12) : ''}</div>
+        `;
+
+        const allLayersPct = s.tokens?.all_layers_savings_percent != null ? s.tokens.all_layers_savings_percent : 0;
+        const allLayersSaved = s.tokens?.all_layers_saved || 0;
+        document.getElementById('cardCompressionContent').innerHTML = `
+            <div class="text-2xl font-bold text-gray-800">${fmtNum(allLayersSaved)}</div>
+            <div class="text-gray-500">总节省 Tokens</div>
+            <div class="flex items-center gap-1.5">
+                <span class="text-lg font-semibold text-green-600">${allLayersPct.toFixed(1)}%</span>
+                <span class="text-gray-400 text-xs">压缩率</span>
+            </div>
+        `;
+
+        const req = s.requests || {};
+        const total = req.total || 0;
+        const failed = req.failed || 0;
+        const rateLimited = req.rate_limited || 0;
+        const cached = req.cached || 0;
+        const successRate = total > 0 ? ((total - failed) / total * 100).toFixed(1) : '-';
+        document.getElementById('cardHealthContent').innerHTML = `
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-lg font-semibold text-gray-800">${successRate}%</div>
+                    <div class="text-gray-500">成功率</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-lg font-semibold text-gray-800">${fmtNum(total)}</div>
+                    <div class="text-gray-500 text-xs">总请求</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 text-xs pt-1">
+                <span class="text-green-500">${fmtNum(cached)} 缓存</span>
+                <span class="${failed > 0 ? 'text-red-500' : 'text-gray-400'}">${failed} 失败</span>
+                <span class="${rateLimited > 0 ? 'text-amber-500' : 'text-gray-400'}">${rateLimited} 限流</span>
+            </div>
+        `;
+        document.getElementById('cardRequestsContent').innerHTML = `
+            <div class="text-2xl font-bold text-gray-800">${fmtNum(req.total)}</div>
+            <div class="text-gray-500">总请求</div>
+            <div class="flex items-center gap-3 text-xs text-gray-500">
+                <span><i class="fas fa-database mr-1"></i>压缩缓存 ${s.compression_cache?.hit_rate != null ? s.compression_cache.hit_rate.toFixed(1) + '%' : '-'}</span>
+                <span><i class="fas fa-clock mr-1"></i>${s.latency?.average_ms ? s.latency.average_ms.toFixed(0) + 'ms' : '-'}</span>
+            </div>
+        `;
+    }
+
+    function renderStrategies(data) {
+        const s = data.stats || {};
+        const strategies = s.compressions_by_strategy || {};
+        const keys = Object.keys(strategies);
+        const container = document.getElementById('strategyBars');
+
+        if (!keys.length) {
+            container.innerHTML = '<div class="text-sm text-gray-400 py-4 text-center">暂无压缩数据（使用 Headroom 后才会产生）</div>';
+            return;
+        }
+
+        const total = keys.reduce((sum, k) => sum + (strategies[k] || 0), 0);
+        const colors = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#818cf8', '#7c3aed'];
+        const labels = { kompress: '智能压缩 (Kompress)', ast: 'AST 压缩 (AST)', json: 'JSON 压缩 (JSON)', cache: '缓存 (Cache)', prefix: '前缀缓存 (Prefix)',
+                        cli_filtering: 'CLI 过滤 (CLI)', rtk: '精简上下文 (RTK)', lean_ctx: '精简上下文 (Lean CTX)',
+                        text: '文本 (Text)', log: '日志 (Log)', search: '搜索 (Search)',
+                        smart_crusher: '智能粉碎 (Smart Crusher)', default: '其他 (Other)' };
+
+        container.innerHTML = keys.map((k, i) => {
+            const val = strategies[k] || 0;
+            const pct = total > 0 ? (val / total * 100) : 0;
+            const label = labels[k.toLowerCase()] || k;
+            const color = colors[i % colors.length];
+            return `
+                <div class="flex items-center gap-4">
+                    <span class="text-xs text-gray-500 w-36 text-right shrink-0 whitespace-nowrap">${label}</span>
+                    <div class="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
+                        <div class="bar h-full rounded-full" style="width: ${pct}%; background: ${color}"></div>
+                    </div>
+                    <span class="text-xs font-medium text-gray-600 w-14 shrink-0 text-right">${pct.toFixed(1)}%</span>
+                    <span class="text-xs text-gray-400 w-20 shrink-0">${fmtNum(val)}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderModelCosts(data) {
+        const container = document.getElementById('modelCosts');
+        const models = data.model_costs?.per_model || {};
+        const keys = Object.keys(models);
+        if (!keys.length) {
+            container.innerHTML = '<div class="text-sm text-gray-400 py-4 text-center">暂无数据（使用 Claude Code 后才会产生）</div>';
+            return;
+        }
+
+        // 汇总指标
+        const totalBefore = keys.reduce((s, k) => s + (models[k].total_before_compression || 0), 0);
+        const totalAfter = keys.reduce((s, k) => s + (models[k].input_tokens || 0), 0);
+        const totalSaved = keys.reduce((s, k) => s + (models[k].tokens_saved || 0), 0);
+        const overallPct = totalBefore > 0 ? (totalSaved / totalBefore * 100) : 0;
+
+        container.innerHTML = `
+        <!-- 汇总进度条 -->
+        <div class="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-4 mb-4 border border-indigo-100">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-gray-500 font-medium">总输入压缩</span>
+                <span class="text-xs text-gray-500">${fmtNum(totalBefore)} → ${fmtNum(totalAfter)}</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-5 overflow-hidden relative">
+                <div class="bg-indigo-400 h-full rounded-full transition-all duration-500" style="width: ${totalAfter / totalBefore * 100}%"></div>
+                <div class="absolute inset-0 flex items-center justify-center text-xs font-medium text-white drop-shadow-sm">
+                    压缩 ${overallPct.toFixed(1)}% · 节省 ${fmtNum(totalSaved)} tokens
+                </div>
+            </div>
+        </div>
+
+        <!-- 各模型对比卡片 -->
+        <div class="space-y-3">
+        ${keys.map(name => {
+            const m = models[name];
+            const pct = m.savings_percent || 0;
+            const afterPct = Math.max(m.input_tokens / m.total_before_compression * 100, 5);
+            return `
+            <div class="border border-gray-100 rounded-lg p-3.5">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-gray-800">${m.name_cn || name}</span>
+                        <span class="text-xs text-gray-400">${m.requests} 次请求</span>
+                    </div>
+                    <span class="text-xs font-medium text-green-600">节省 ${fmtNum(m.tokens_saved)} · ${pct.toFixed(1)}%</span>
+                </div>
+                <div class="relative h-6 bg-gray-100 rounded overflow-hidden">
+                    <div class="bg-blue-300 h-full" style="width: ${afterPct}%"></div>
+                    <div class="bg-green-400 h-full absolute top-0" style="width: ${afterPct}%; opacity: 0"></div>
+                    <div class="bg-green-300 h-full absolute top-0 rounded-r-sm" style="left: ${afterPct}%; width: ${100 - afterPct}%"></div>
+                    <div class="absolute inset-0 flex items-center justify-between px-2 text-xs text-gray-700 font-medium">
+                        <span>压缩后 ${fmtNum(m.input_tokens)}</span>
+                        <span class="text-green-800">节省 ${fmtNum(m.tokens_saved)}</span>
+                    </div>
+                </div>
+                <div class="flex justify-between mt-1 text-xs text-gray-400">
+                    <span>压缩前 ${fmtNum(m.total_before_compression)}</span>
+                    <span>输出 ${fmtNum(m.output_tokens)}</span>
+                </div>
+            </div>
+            `;
+        }).join('')}
+        </div>
+        `;
+    }
+
+    // ─── Container Control ────────────────────────────────────────────────
+    async function containerAction(action) {
+        const labels = { restart: '重启', stop: '停止', start: '启动' };
+        const btn = event.target.closest('button');
+        const resultEl = document.getElementById('controlResult');
+        if (btn) btn.disabled = true;
+        resultEl.innerHTML = `<i class="fas fa-spinner spinner mr-1"></i>正在${labels[action]}...`;
+        try {
+            const res = await fetch(`/api/container/${action}`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`容器已${labels[action]}`, 'success');
+                refreshDashboard();
+            } else {
+                resultEl.textContent = `${labels[action]}失败: ${data.error || '未知错误'}`;
+                showToast(`${labels[action]}失败`, 'error');
+            }
+        } catch (e) {
+            resultEl.textContent = `请求失败: ${e.message}`;
+            showToast(`请求失败: ${e.message}`, 'error');
+        }
+        if (btn) btn.disabled = false;
+    }
+
+    // ─── Config ────────────────────────────────────────────────────────────
+    let configSchema = [];
+
+    async function loadConfig() {
+        await Promise.all([loadSystemConfig(), loadHeadroomParams(), loadSnapshot()]);
+    }
+
+    async function loadSystemConfig() {
+        try {
+            const res = await fetch('/api/config/system');
+            const data = await res.json();
+
+            // 填充表单
+            document.getElementById('sysAnthropicUrl').value = data.anthropic_base_url || '';
+            const sel = document.getElementById('sysRouteSelect');
+            let matched = false;
+            for (const opt of sel.options) {
+                if (opt.value === data.anthropic_base_url) { sel.value = data.anthropic_base_url; matched = true; break; }
+            }
+            if (!matched) sel.value = '__custom__';
+
+            // 路由状态指示
+            const url = data.anthropic_base_url || '';
+            const isThroughHeadroom = url.includes('localhost:8787') || url.includes('127.0.0.1:8787');
+            const isDirect = url.includes('api.deepseek.com');
+            const badge = document.getElementById('routeBadge');
+            const effectiveUrl = document.getElementById('routeEffectiveUrl');
+            const configSource = document.getElementById('routeConfigSource');
+
+            if (isThroughHeadroom) {
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700';
+                badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Headroom 代理';
+            } else if (isDirect) {
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700';
+                badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>直连 DeepSeek';
+            } else if (url) {
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700';
+                badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>自定义路由';
+            } else {
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-500';
+                badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>未配置';
+            }
+
+            effectiveUrl.textContent = url || '(未配置)';
+
+            // 显示配置来源
+            const sourceParts = [];
+            if (data.claude_settings_url) sourceParts.push('settings.json ✓');
+            if (data.env_var) sourceParts.push('系统环境变量 ✓');
+            if (data.profile_url) sourceParts.push('profile.ps1 ✓');
+            configSource.textContent = sourceParts.length ? '生效于: ' + sourceParts.join(' · ') : '未配置';
+
+            // 配置位置详情
+            const locContainer = document.getElementById('configLocations');
+            const locations = [
+                { label: 'settings.json', value: data.claude_settings_url || '未设置', active: !!data.claude_settings_url },
+                { label: '系统环境变量', value: data.env_var || '未设置', active: !!data.env_var },
+                { label: 'profile.ps1', value: data.profile_url || '未设置', active: !!data.profile_url },
+            ];
+            locContainer.innerHTML = locations.map(l => `
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded ${l.active ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-50 text-gray-400'}">
+                    <span class="w-1.5 h-1.5 rounded-full ${l.active ? 'bg-indigo-400' : 'bg-gray-300'}"></span>
+                    ${l.label}: ${l.value || '未设置'}
+                </span>
+            `).join('');
+
+            // 高亮当前选中的切换按钮
+            document.querySelectorAll('.route-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-500', 'text-white', 'border-indigo-300');
+                btn.classList.add('bg-white', 'text-gray-600', 'border-gray-200', 'hover:bg-gray-50');
+            });
+            if (isThroughHeadroom) {
+                const btn = document.querySelector('.route-btn[data-route="headroom"]');
+                if (btn) { btn.classList.remove('bg-white', 'text-gray-600', 'border-gray-200', 'hover:bg-gray-50');
+                    btn.classList.add('bg-indigo-500', 'text-white', 'border-indigo-300'); }
+            } else if (isDirect) {
+                const btn = document.querySelector('.route-btn[data-route="direct"]');
+                if (btn) { btn.classList.remove('bg-white', 'text-gray-600', 'border-gray-200', 'hover:bg-gray-50');
+                    btn.classList.add('bg-indigo-500', 'text-white', 'border-indigo-300'); }
+            }
+        } catch (e) { showToast('加载系统配置失败: ' + e.message, 'error'); }
+    }
+
+    function onRouteChange() {
+        const sel = document.getElementById('sysRouteSelect');
+        const input = document.getElementById('sysAnthropicUrl');
+        if (sel.value !== '__custom__') input.value = sel.value;
+    }
+
+    async function toggleRoute(route) {
+        const labels = { headroom: 'Headroom 代理', direct: '直连 DeepSeek' };
+        const btn = event?.target?.closest('button');
+        if (btn) btn.disabled = true;
+        try {
+            const res = await fetch('/api/config/system', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'toggle_route', route }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`已切换至 ${labels[route]}，立即生效`, 'success');
+                await loadSystemConfig();
+            } else {
+                showToast('切换失败: ' + (data.error || '未知错误'), 'error');
+            }
+        } catch (e) { showToast('请求失败: ' + e.message, 'error'); }
+        if (btn) btn.disabled = false;
+    }
+
+    async function saveSystemConfig() {
+        const url = document.getElementById('sysAnthropicUrl').value.trim();
+        if (!url) { showToast('请输入 ANTHROPIC_BASE_URL', 'error'); return; }
+        try {
+            const res = await fetch('/api/config/system', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'update_url', anthropic_base_url: url }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                await loadSystemConfig();
+            } else {
+                showToast('保存失败: ' + (data.error || '未知错误'), 'error');
+            }
+        } catch (e) { showToast('请求失败: ' + e.message, 'error'); }
+    }
+
+    async function loadHeadroomParams() {
+        try {
+            const res = await fetch('/api/config/list');
+            configSchema = await res.json();
+            const curRes = await fetch('/api/config/headroom');
+            const current = await curRes.json();
+            renderHeadroomForm(current);
+        } catch (e) { showToast('加载参数失败: ' + e.message, 'error'); }
+    }
+
+    function renderHeadroomForm(current) {
+        const env = current.env || {};
+        const cmd = current.cmd || [];
+        const container = document.getElementById('headroomParamsContainer');
+        const categories = [
+            { key: 'mode', label: '运行模式', icon: 'fa-play-circle' },
+            { key: 'optimization', label: '优化开关', icon: 'fa-toggle-on' },
+            { key: 'memory', label: '记忆', icon: 'fa-brain' },
+            { key: 'backend', label: '直连与后端', icon: 'fa-server' },
+            { key: 'log', label: '预算与日志', icon: 'fa-chart-line' },
+        ];
+
+        let html = '';
+        for (const cat of categories) {
+            const params = configSchema.filter(p => p.category === cat.key);
+            if (!params.length) continue;
+            html += `<div class="mb-4"><h4 class="text-sm font-medium text-gray-600 mb-2"><i class="fas ${cat.icon} text-indigo-300 mr-1.5"></i>${cat.label}</h4>`;
+            for (const p of params) {
+                const id = `hparam-${p.key}`;
+                let curVal = p.default;
+                if (p.key === 'anthropic-api-url' && env.ANTHROPIC_TARGET_API_URL) curVal = env.ANTHROPIC_TARGET_API_URL;
+                const idx = cmd.indexOf(p.flag === '-p' ? '-p' : p.flag);
+                if (idx >= 0 && p.type !== 'bool') curVal = cmd[idx + 1] || curVal;
+                if (idx >= 0 && p.type === 'bool') curVal = true;
+
+                html += `<div class="param-row">`;
+                html += `<div class="param-label">${p.label}</div>`;
+                html += `<div class="param-input">`;
+                if (p.type === 'bool') {
+                    const checked = curVal === true || String(curVal).toLowerCase() === 'true';
+                    html += `<label class="toggle"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''}><span class="toggle-slider"></span></label>`;
+                } else if (p.type === 'select') {
+                    html += `<select id="${id}">`;
+                    for (const opt of p.options || []) {
+                        html += `<option value="${opt.value}" ${String(curVal) === opt.value ? 'selected' : ''}>${opt.label}</option>`;
+                    }
+                    html += `</select>`;
+                } else if (p.type === 'number') {
+                    html += `<input type="number" id="${id}" value="${curVal || ''}" ${p.placeholder ? `placeholder="${p.placeholder}"` : ''} />`;
+                } else {
+                    html += `<input type="text" id="${id}" value="${curVal || ''}" ${p.placeholder ? `placeholder="${p.placeholder}"` : ''} />`;
+                }
+                html += `</div></div>`;
+            }
+            html += `</div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    async function saveHeadroomConfig() {
+        const params = {};
+        for (const p of configSchema) {
+            const el = document.getElementById(`hparam-${p.key}`);
+            if (!el) continue;
+            if (p.type === 'bool') params[p.key] = el.checked;
+            else params[p.key] = el.value;
+        }
+
+        try {
+            const res = await fetch('/api/config/headroom', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('容器已用新参数重启', 'success');
+                setTimeout(loadConfig, 1000);
+            } else {
+                showToast('失败: ' + (data.error || '未知错误'), 'error');
+            }
+        } catch (e) { showToast('请求失败: ' + e.message, 'error'); }
+    }
+
+    async function loadSnapshot() {
+        try {
+            const [sysRes, hrRes] = await Promise.all([
+                fetch('/api/config/system'),
+                fetch('/api/config/headroom'),
+            ]);
+            const sys = await sysRes.json();
+            const hr = await hrRes.json();
+            const cmd = (hr.cmd || []).join(' ');
+            const env = hr.env || {};
+            const profilesLines = (sys.profile_content || '').split('\n')
+                .filter(l => l.includes('HEADROOM') || l.includes('ANTHROPIC_BASE_URL') || l.includes('headroom')).join('\n');
+
+            document.getElementById('snapshotContent').innerHTML = `
+                <div class="space-y-2">
+                    <div><span class="font-medium text-gray-600">容器启动命令:</span>
+                        <pre class="mt-1 bg-gray-50 p-2 rounded text-xs overflow-x-auto">docker ${cmd}</pre>
+                    </div>
+                    <div><span class="font-medium text-gray-600">环境变量:</span>
+                        <pre class="mt-1 bg-gray-50 p-2 rounded text-xs overflow-x-auto">${JSON.stringify(env, null, 2)}</pre>
+                    </div>
+                    <div><span class="font-medium text-gray-600">Profile 配置:</span>
+                        <pre class="mt-1 bg-gray-50 p-2 rounded text-xs overflow-x-auto">${profilesLines || '(未配置)'}</pre>
+                    </div>
+                </div>
+            `;
+        } catch (e) {
+            document.getElementById('snapshotContent').innerHTML = `<div class="text-sm text-red-400">加载失败: ${e.message}</div>`;
+        }
+    }
+
+    // ─── Logs ──────────────────────────────────────────────────────────────
+    async function refreshLogs() {
+        const pre = document.getElementById('logContent');
+        pre.innerHTML = '<span class="text-gray-400">正在加载日志...</span>';
+        try {
+            const res = await fetch('/api/logs?lines=100');
+            const data = await res.json();
+            if (data.error) {
+                pre.innerHTML = `<span class="text-red-400">${data.error}</span>`;
+                return;
+            }
+            const lines = (data.logs || '').split('\n').filter(Boolean);
+            document.getElementById('logLineCount').textContent = lines.length + ' 行';
+            pre.innerHTML = lines.map(l => {
+                const ts = l.slice(0, 30);
+                const rest = l.slice(30);
+                let colorClass = 'text-gray-300';
+                if (rest.includes('WARN') || rest.includes('warn')) colorClass = 'text-yellow-300';
+                if (rest.includes('ERROR') || rest.includes('error') || rest.includes('Error')) colorClass = 'text-red-300';
+                if (rest.includes('compression') || rest.includes('saved') || rest.includes('savings')) colorClass = 'text-green-300';
+                return `<div class="log-line py-0.5 px-1 -mx-1 rounded"><span class="text-gray-500">${ts}</span><span class="${colorClass}">${rest}</span></div>`;
+            }).join('');
+        } catch (e) {
+            pre.innerHTML = `<span class="text-red-400">请求失败: ${e.message}</span>`;
+        }
+    }
+
+    async function downloadLogs() {
+        try {
+            const res = await fetch('/api/logs?lines=500');
+            const data = await res.json();
+            const blob = new Blob([data.logs || ''], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `headroom-logs-${new Date().toISOString().slice(0, 19)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) { showToast('下载失败: ' + e.message, 'error'); }
+    }
+
+    // ─── Init ──────────────────────────────────────────────────────────────
+    refreshDashboard();
+</script>
+</body>
+</html>
