@@ -27,14 +27,22 @@ Headroom 代理的本地 Web 配置中心与监控看板。
 python --version
 # 应该输出 Python 3.12+
 
+# 如果提示找不到 Python，但你装了 Anaconda，试试：
+conda activate base
+python --version
+```
+
+如果没有 Python 也没有 Anaconda，去安装其中一个：
+- [Python 3.12+](https://www.python.org/downloads/)（轻量）
+- [Anaconda](https://www.anaconda.com/download) 或 [Miniconda](https://docs.anaconda.com/miniconda/)（科学计算用户常用）
+
+```bash
 # 2. Docker 装了没
 docker ps
 # 应该输出容器列表（或空列表），而不是报错
 ```
 
-如果没有，先去安装：
-- [Python 3.12+](https://www.python.org/downloads/)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+如果没有，去安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)。
 
 ### 第二步：启动 Headroom 容器
 
