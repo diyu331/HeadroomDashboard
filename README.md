@@ -152,13 +152,15 @@ python app.py
 
 ## Docker 路径自定义
 
-如果 `docker` 命令不在系统 PATH 中，可以设置环境变量：
+如果 `docker` 命令不在系统 PATH 中（比如 Docker Desktop 安装路径特殊），可以在 WebUI 配置页面的「系统环境配置」中填写 docker.exe 的完整路径。
+
+例如你的 Docker 安装路径可能是 `C:\Program Files\Docker\Docker\resources\bin\docker.exe`，实际位置以你电脑为准。
+
+或者设置环境变量：
 
 ```bash
-set DOCKER_PATH=C:\Program Files\Docker\Docker\resources\bin\docker.exe
+set DOCKER_PATH=C:\你的实际路径\docker.exe
 ```
-
-或者在 WebUI 配置页面的「系统环境配置」中填写。
 
 ## 常见问题
 
