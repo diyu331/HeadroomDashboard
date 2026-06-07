@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import requests
 from flask import Flask, jsonify, request, send_from_directory
 
-app = Flask(__name__, static_folder="templates")
+app = Flask(__name__, static_folder="static")
 
 DOCKER_PATH = os.environ.get("DOCKER_PATH", "docker")
 PROFILE_PATH = os.path.expanduser(r"~\Documents\WindowsPowerShell\profile.ps1")
