@@ -96,53 +96,73 @@ HEADROOM_API = "http://localhost:8787"
 CONFIG_PARAMS = [
     {"key": "mode", "flag": "--mode", "type": "select", "default": "token",
      "category": "mode", "label": "优化模式",
+     "description": "Token 优先追求最大压缩率，Cache 优先则牺牲部分压缩率换取更高的语义缓存命中",
      "options": [{"value": "token", "label": "Token 优先（最大压缩）"},
                  {"value": "cache", "label": "Cache 优先（提高缓存命中）"}]},
     {"key": "port", "flag": "--port", "type": "number", "default": "8787",
-     "category": "mode", "label": "监听端口"},
+     "category": "mode", "label": "监听端口",
+     "description": "Headroom 代理监听的端口号，修改后需更新 ANTHROPIC_BASE_URL 中的端口"},
     {"key": "workers", "flag": "--workers", "type": "number", "default": "1",
-     "category": "mode", "label": "工作进程数"},
+     "category": "mode", "label": "工作进程数",
+     "description": "并发处理请求的工作进程数，多核机器可适当调高以提升吞吐"},
     {"key": "no-optimize", "flag": "--no-optimize", "type": "bool", "default": False,
-     "category": "optimization", "label": "禁用压缩（透传模式）"},
+     "category": "optimization", "label": "禁用压缩（透传模式）",
+     "description": "开启后 Headroom 仅转发请求不做任何压缩，适用于排查压缩导致的兼容问题"},
     {"key": "no-cache", "flag": "--no-cache", "type": "bool", "default": False,
-     "category": "optimization", "label": "禁用语义缓存"},
+     "category": "optimization", "label": "禁用语义缓存",
+     "description": "关闭语义缓存，每个请求都会完整走压缩流程，不会命中缓存"},
     {"key": "no-rate-limit", "flag": "--no-rate-limit", "type": "bool", "default": False,
-     "category": "optimization", "label": "禁用速率限制"},
+     "category": "optimization", "label": "禁用速率限制",
+     "description": "关闭请求频率限制，高并发场景下可能触发上游 API 限流"},
     {"key": "code-aware", "flag": "--code-aware", "type": "bool", "default": False,
-     "category": "optimization", "label": "启用 AST 代码压缩"},
+     "category": "optimization", "label": "启用 AST 代码压缩",
+     "description": "对代码内容做 AST 级别的智能压缩，比通用压缩更节省代码类 tokens"},
     {"key": "intercept-tool-results", "flag": "--intercept-tool-results", "type": "bool", "default": False,
-     "category": "optimization", "label": "拦截 Tool Results"},
+     "category": "optimization", "label": "拦截 Tool Results",
+     "description": "拦截并压缩 Claude Code 的工具执行结果，减少长输出对上下文的占用"},
     {"key": "code-graph", "flag": "--code-graph", "type": "bool", "default": False,
-     "category": "optimization", "label": "启用代码图谱智能"},
+     "category": "optimization", "label": "启用代码图谱智能",
+     "description": "利用代码图谱分析调用关系，更精准地判断哪些上下文可以压缩"},
     {"key": "memory", "flag": "--memory", "type": "bool", "default": False,
-     "category": "memory", "label": "启用持久记忆"},
+     "category": "memory", "label": "启用持久记忆",
+     "description": "启用后 Headroom 会记住跨会话的关键上下文，避免重复向 Claude 发送"},
     {"key": "memory-storage", "flag": "--memory-storage", "type": "select", "default": "project",
      "category": "memory", "label": "记忆存储方式",
+     "description": "Project 按项目目录隔离记忆，User 按用户隔离，Global 全局共享",
      "options": [{"value": "project", "label": "Project（按项目隔离）"},
                  {"value": "user", "label": "User（按用户隔离）"},
                  {"value": "global", "label": "Global（全局共享）"}]},
     {"key": "memory-top-k", "flag": "--memory-top-k", "type": "number", "default": "10",
-     "category": "memory", "label": "注入记忆条数"},
+     "category": "memory", "label": "注入记忆条数",
+     "description": "每次请求最多向上下文注入多少条历史记忆，调高可提供更多上下文但增加 tokens"},
     {"key": "learn", "flag": "--learn", "type": "bool", "default": False,
-     "category": "memory", "label": "启用流量学习"},
+     "category": "memory", "label": "启用流量学习",
+     "description": "分析流量模式自动优化压缩策略，长期运行能显著提升压缩效果"},
     {"key": "anthropic-api-url", "flag": "--anthropic-api-url", "type": "text", "default": "",
      "category": "backend", "label": "自定义 API 地址",
+     "description": "覆盖 Headroom 上游的 Anthropic API 地址，可用于指向 DeepSeek 兼容接口",
      "placeholder": "https://api.deepseek.com/anthropic"},
     {"key": "backend", "flag": "--backend", "type": "select", "default": "anthropic",
      "category": "backend", "label": "API 后端",
+     "description": "选择上游 API 后端：Anthropic 直连、AWS Bedrock 或 OpenRouter",
      "options": [{"value": "anthropic", "label": "Anthropic 直连"},
                  {"value": "bedrock", "label": "AWS Bedrock"},
                  {"value": "openrouter", "label": "OpenRouter"}]},
     {"key": "region", "flag": "--region", "type": "text", "default": "us-west-2",
-     "category": "backend", "label": "云区域（Bedrock/Vertex）"},
+     "category": "backend", "label": "云区域（Bedrock/Vertex）",
+     "description": "AWS Bedrock 或 Google Vertex AI 的服务区域，如 us-west-2、us-east-1"},
     {"key": "budget", "flag": "--budget", "type": "number", "default": "",
-     "category": "log", "label": "每日预算上限（USD）"},
+     "category": "log", "label": "每日预算上限（USD）",
+     "description": "每日 API 消费预算上限（美元），达到上限后将拒绝新请求"},
     {"key": "no-telemetry", "flag": "--no-telemetry", "type": "bool", "default": False,
-     "category": "log", "label": "关闭匿名遥测"},
+     "category": "log", "label": "关闭匿名遥测",
+     "description": "关闭向 Headroom 项目发送匿名使用统计数据"},
     {"key": "log-file", "flag": "--log-file", "type": "text", "default": "",
-     "category": "log", "label": "日志文件路径"},
+     "category": "log", "label": "日志文件路径",
+     "description": "将 Headroom 日志输出到指定文件，留空则输出到容器标准输出"},
     {"key": "log-messages", "flag": "--log-messages", "type": "bool", "default": False,
-     "category": "log", "label": "记录完整消息体"},
+     "category": "log", "label": "记录完整消息体",
+     "description": "在日志中记录完整的请求和响应消息体，调试时有用但会大量增加日志"},
 ]
 
 
@@ -198,6 +218,12 @@ def get_headroom_stats():
         return {"error": str(e)}
 
 
+def check_docker_available():
+    """检查 Docker CLI 是否可用"""
+    _, stderr, rc = docker_cmd("info", "--format", "{{.ServerVersion}}")
+    return rc == 0
+
+
 def read_profile():
     try:
         with open(PROFILE_PATH, "r", encoding="utf-8") as f:
@@ -234,7 +260,8 @@ def build_docker_run_args(params):
     docker_opts = ["run", "-d", "--name", HEADROOM_CONTAINER,
                    "--restart", "unless-stopped",
                    "-p", "8787:8787",
-                   "-v", f"{os.path.expanduser('~')}/.headroom:/root/.headroom"]
+                   "-v", f"{os.path.expanduser('~')}\\.headroom:/root/.headroom",
+                   "-e", "HF_ENDPOINT=https://hf-mirror.com"]
 
     env_vars = {}
     if params.get("anthropic-api-url"):
@@ -279,6 +306,56 @@ def recreate_container(params):
 
 
 # ─── Routes ────────────────────────────────────────────────────────────────
+
+@app.route("/api/startup/status")
+def api_startup_status():
+    """返回启动就绪状态，供 Splash 页面轮询"""
+    docker_available = check_docker_available()
+
+    if not docker_available:
+        return jsonify({
+            "phase": "docker_unavailable",
+            "docker_available": False,
+            "container_running": False,
+            "headroom_ready": False,
+            "detail": "Docker Desktop 未运行或未安装",
+        })
+
+    container = get_container_status()
+    container_running = container.get("running", False)
+
+    if not container_running and container.get("status") == "not_found":
+        return jsonify({
+            "phase": "container_missing",
+            "docker_available": True,
+            "container_running": False,
+            "headroom_ready": False,
+            "detail": "Headroom 容器不存在，正在创建...",
+        })
+
+    if not container_running:
+        return jsonify({
+            "phase": "container_stopped",
+            "docker_available": True,
+            "container_running": False,
+            "headroom_ready": False,
+            "detail": "Headroom 容器已停止，正在启动...",
+        })
+
+    health = get_headroom_health()
+    headroom_ready = health.get("status") == "healthy" if isinstance(health, dict) else False
+
+    detail = "Headroom 服务就绪" if headroom_ready else "等待 Headroom 服务初始化..."
+
+    return jsonify({
+        "phase": "ready" if headroom_ready else "waiting_headroom",
+        "docker_available": True,
+        "container_running": True,
+        "headroom_ready": headroom_ready,
+        "health": health if isinstance(health, dict) else {},
+        "detail": detail,
+    })
+
 
 @app.route("/")
 def index():
