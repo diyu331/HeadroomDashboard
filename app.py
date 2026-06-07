@@ -228,19 +228,38 @@ def check_docker_available():
 _headroom_warmed_up = False
 
 def warmup_headroom_litellm():
-    """发送空请求到 /v1/messages 触发 LiteLLM 预热，消除首次请求的 40s 延迟"""
+    """后台循环预热 LiteLLM，直到成功。消除首次请求的 ~60s 延迟。"""
     global _headroom_warmed_up
     if _headroom_warmed_up:
         return
-    try:
-        requests.post(
-            f"{HEADROOM_API}/v1/messages",
-            json={"model": "claude-sonnet-4-6", "max_tokens": 1, "messages": [{"role": "user", "content": ""}]},
-            headers={"x-api-key": "warmup", "anthropic-version": "2023-06-01"},
-            timeout=60,
-        )
-    except requests.RequestException:
-        pass  # 预热失败很正常（无有效 key），但 LiteLLM 已被触发加载
+
+    wait = 0
+    while wait < 90:
+        try:
+            # 先等 Headroom HTTP 就绪
+            r = requests.get(f"{HEADROOM_API}/health", timeout=3)
+            if r.status_code != 200:
+                time.sleep(3)
+                wait += 3
+                continue
+
+            # 发一个空请求触发 LiteLLM 初始化，用假 key 没关系
+            # LiteLLM 的 provider/tokenizer 加载在发往上游之前已完成
+            requests.post(
+                f"{HEADROOM_API}/v1/messages",
+                json={"model": "claude-sonnet-4-6", "max_tokens": 1, "messages": [{"role": "user", "content": ""}]},
+                headers={"x-api-key": "warmup", "anthropic-version": "2023-06-01"},
+                timeout=60,
+            )
+            break
+        except requests.ConnectionError:
+            time.sleep(3)
+            wait += 3
+        except requests.Timeout:
+            time.sleep(3)
+            wait += 3
+        except requests.RequestException:
+            break  # 请求到达了 Headroom 且被处理（即使被拒也算加载完成）
     _headroom_warmed_up = True
 
 
@@ -365,9 +384,6 @@ def api_startup_status():
     health = get_headroom_health()
     headroom_ready = health.get("status") == "healthy" if isinstance(health, dict) else False
 
-    if headroom_ready and not _headroom_warmed_up:
-        threading.Thread(target=warmup_headroom_litellm, daemon=True).start()
-
     detail = "Headroom 服务就绪" if headroom_ready else "等待 Headroom 服务初始化..."
 
     return jsonify({
@@ -387,7 +403,7 @@ def index():
 
 @app.route("/assets/<path:filename>")
 def serve_asset(filename):
-    return send_from_directory("static", filename)
+    return send_from_directory("static/assets", filename)
 
 
 @app.route("/api/config/pricing")
@@ -571,4 +587,5 @@ def api_config_system_post():
 
 
 if __name__ == "__main__":
+    threading.Thread(target=warmup_headroom_litellm, daemon=True).start()
     app.run(host="127.0.0.1", port=5000, debug=False)
