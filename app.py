@@ -523,6 +523,55 @@ def api_config_system_post():
         else:
             return jsonify({"success": False, "error": "未知路由"}), 400
 
+        # 保存到 profile.ps1
+        content = read_profile()
+        if re.search(r'\$env:ANTHROPIC_BASE_URL\s*=', content):
+            content = re.sub(
+                r'\$env:ANTHROPIC_BASE_URL\s*=\s*"[^"]*"',
+                f'$env:ANTHROPIC_BASE_URL = "{new_url}"',
+                content,
+            )
+        else:
+            headroom_section = "# Headroom proxy — Claude Code context compression\n"
+            if headroom_section in content:
+                content = content.replace(
+                    headroom_section,
+                    headroom_section + f'$env:ANTHROPIC_BASE_URL = "{new_url}"\n',
+                )
+            else:
+                content = f'{headroom_section}$env:ANTHROPIC_BASE_URL = "{new_url}"\n\n{content}'
+        write_profile(content)
+
+        # 写入系统环境变量
+        try:
+            subprocess.run(
+                ["setx", "ANTHROPIC_BASE_URL", new_url],
+                capture_output=True, text=True, timeout=10,
+            )
+        except Exception:
+            pass
+
+        # 写入 Claude Code settings.json
+        try:
+            if os.path.exists(CLAUDE_SETTINGS_PATH):
+                with open(CLAUDE_SETTINGS_PATH, "r", encoding="utf-8") as f:
+                    claude_settings = json.load(f)
+            else:
+                claude_settings = {}
+            if "env" not in claude_settings:
+                claude_settings["env"] = {}
+            claude_settings["env"]["ANTHROPIC_BASE_URL"] = new_url
+            os.makedirs(os.path.dirname(CLAUDE_SETTINGS_PATH), exist_ok=True)
+            with open(CLAUDE_SETTINGS_PATH, "w", encoding="utf-8") as f:
+                json.dump(claude_settings, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+        # 当前进程也设上
+        os.environ["ANTHROPIC_BASE_URL"] = new_url
+
+        return jsonify({"success": True, "message": f"已切换至{'Headroom 代理' if route == 'headroom' else '直连 DeepSeek'}，立即生效"})
+
     elif action == "update_url":
         new_url = data.get("anthropic_base_url", "")
         content = read_profile()
