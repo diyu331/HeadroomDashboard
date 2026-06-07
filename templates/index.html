@@ -204,18 +204,21 @@
                             <option value="https://api.deepseek.com/anthropic">直连 DeepSeek</option>
                             <option value="__custom__">自定义</option>
                         </select>
+                        <div class="text-xs text-gray-400 mt-1 leading-relaxed">选择 Claude Code 的 API 请求路由：通过 Headroom 代理（自动压缩），或直连 DeepSeek 跳过压缩</div>
                     </div>
                 </div>
                 <div class="param-row">
                     <div class="param-label"><i class="fas fa-link text-gray-400 w-4 mr-1.5"></i>ANTHROPIC_BASE_URL</div>
                     <div class="param-input">
                         <input type="text" id="sysAnthropicUrl" placeholder="https://api.deepseek.com/anthropic" />
+                        <div class="text-xs text-gray-400 mt-1 leading-relaxed">Claude Code SDK 读取的环境变量，指定 API 地址。设为 Headroom 地址走代理压缩，设为 DeepSeek 地址直连</div>
                     </div>
                 </div>
                 <div class="param-row">
                     <div class="param-label"><i class="fas fa-file-code text-gray-400 w-4 mr-1.5"></i>配置位置</div>
                     <div class="param-input">
                         <div class="flex flex-wrap gap-2 text-xs" id="configLocations"></div>
+                        <div class="text-xs text-gray-400 mt-1 leading-relaxed">当前 ANTHROPIC_BASE_URL 所在位置，多项同时存在时靠前的优先级更高</div>
                     </div>
                 </div>
                 <div class="flex justify-end pt-2">
@@ -234,8 +237,8 @@
                 <div class="text-center py-8 text-gray-400"><i class="fas fa-spinner spinner mr-2"></i>加载参数...</div>
             </div>
             <div class="flex justify-end pt-3 border-t border-gray-100 mt-3">
-                <button onclick="saveHeadroomConfig()" class="px-4 py-2 bg-indigo-500 text-white text-sm rounded-lg hover:bg-indigo-600 transition flex items-center gap-2">
-                    <i class="fas fa-redo-alt"></i>保存并重启容器
+                <button onclick="saveHeadroomConfig()" id="saveHeadroomBtn" class="px-4 py-2 bg-indigo-500 text-white text-sm rounded-lg hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2">
+                    <i class="fas fa-redo-alt" id="saveHeadroomIcon"></i><span id="saveHeadroomText">保存并重启容器</span>
                 </button>
             </div>
         </div>
@@ -292,9 +295,9 @@
     // ─── Toast ─────────────────────────────────────────────────────────────
     function showToast(message, type = 'success') {
         const toast = document.getElementById('toast');
-        const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
+        const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500', warning: 'bg-amber-500' };
         toast.className = `fixed top-4 right-4 z-50 toast ${colors[type] || 'bg-gray-700'} text-white px-4 py-2.5 rounded-lg shadow-lg text-sm flex items-center gap-2`;
-        const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
+        const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle' };
         toast.innerHTML = `<i class="fas ${icons[type] || 'fa-info-circle'}"></i> ${message}`;
         toast.classList.remove('hidden');
         setTimeout(() => { toast.classList.add('hidden'); }, 3000);
@@ -721,6 +724,9 @@
                 } else {
                     html += `<input type="text" id="${id}" value="${curVal || ''}" ${p.placeholder ? `placeholder="${p.placeholder}"` : ''} />`;
                 }
+                if (p.description) {
+                    html += `<div class="text-xs text-gray-400 mt-1 leading-relaxed">${p.description}</div>`;
+                }
                 html += `</div></div>`;
             }
             html += `</div>`;
@@ -729,6 +735,13 @@
     }
 
     async function saveHeadroomConfig() {
+        const btn = document.getElementById('saveHeadroomBtn');
+        const icon = document.getElementById('saveHeadroomIcon');
+        const text = document.getElementById('saveHeadroomText');
+        btn.disabled = true;
+        icon.className = 'fas fa-spinner spinner';
+        text.textContent = '正在停止旧容器...';
+
         const params = {};
         for (const p of configSchema) {
             const el = document.getElementById(`hparam-${p.key}`);
@@ -744,13 +757,42 @@
                 body: JSON.stringify(params),
             });
             const data = await res.json();
-            if (data.success) {
-                showToast('容器已用新参数重启', 'success');
-                setTimeout(loadConfig, 1000);
-            } else {
-                showToast('失败: ' + (data.error || '未知错误'), 'error');
+            if (!data.success) {
+                showToast('容器重启失败: ' + (data.error || '未知错误'), 'error');
+                btn.disabled = false;
+                icon.className = 'fas fa-redo-alt';
+                text.textContent = '保存并重启容器';
+                return;
             }
-        } catch (e) { showToast('请求失败: ' + e.message, 'error'); }
+
+            // 容器已重建，等待 Headroom HTTP 服务就绪
+            text.textContent = '等待 Headroom 启动...';
+            let ready = false;
+            for (let i = 0; i < 40; i++) { // 最多等 40 秒
+                try {
+                    const hRes = await fetch('http://localhost:8787/health', { method: 'GET', signal: AbortSignal.timeout(3000) });
+                    if (hRes.ok) { ready = true; break; }
+                } catch (_) {
+                    // 还没就绪，继续等
+                }
+                text.textContent = `等待 Headroom 就绪 (${i + 1}/40 秒)...`;
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            if (ready) {
+                showToast('容器已重启，Headroom 就绪', 'success');
+            } else {
+                showToast('容器已重启，但 Headroom 仍未响应，请稍后手动刷新', 'warning');
+            }
+
+            setTimeout(loadConfig, 500);
+        } catch (e) {
+            showToast('保存失败: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            icon.className = 'fas fa-redo-alt';
+            text.textContent = '保存并重启容器';
+        }
     }
 
     async function loadSnapshot() {
