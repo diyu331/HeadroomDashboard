@@ -3,8 +3,8 @@
     <div class="w-full max-w-lg px-6">
       <!-- Logo -->
       <div class="text-center mb-10">
-        <div class="w-16 h-16 mx-auto mb-4 rounded-xl bg-indigo-500 flex items-center justify-center">
-          <span class="text-2xl font-bold text-white">H</span>
+        <div class="w-16 h-16 mx-auto mb-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+          <img src="/assets/favicon.png" class="w-10 h-10" alt="Headroom Dashboard">
         </div>
         <h1 class="text-xl font-semibold text-white">Headroom Dashboard</h1>
         <p class="text-sm text-gray-400 mt-1">启动中，请稍候...</p>

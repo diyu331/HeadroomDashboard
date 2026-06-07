@@ -5,9 +5,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
-              <span class="text-sm font-bold text-white">H</span>
-            </div>
+            <img src="/assets/favicon.png" class="w-8 h-8 rounded-lg" alt="H">
             <span class="text-lg font-semibold text-gray-900">Headroom Dashboard</span>
           </div>
           <div class="flex items-center gap-1">
