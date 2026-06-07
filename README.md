@@ -33,9 +33,30 @@ Local web dashboard for managing the [Headroom](https://github.com/chopratejas/h
 
 #### Step 1: Start the Headroom container
 
+> Choose the tab for your platform:
+
+<details>
+<summary><b>Windows (PowerShell)</b></summary>
+
+```powershell
+docker run -d --name headroom --restart unless-stopped -p 8787:8787 `
+  -v "$env:USERPROFILE\.headroom:/root/.headroom" `
+  -e HF_ENDPOINT=https://hf-mirror.com `
+  ghcr.io/chopratejas/headroom:latest `
+  --mode token --port 8787 --workers 1 `
+  --code-aware --code-graph `
+  --anthropic-api-url https://api.deepseek.com/anthropic `
+  --backend anthropic
+```
+
+</details>
+
+<details>
+<summary><b>macOS / Linux</b></summary>
+
 ```bash
 docker run -d --name headroom --restart unless-stopped -p 8787:8787 \
-  -v "%USERPROFILE%\.headroom:/root/.headroom" \
+  -v "$HOME/.headroom:/root/.headroom" \
   -e HF_ENDPOINT=https://hf-mirror.com \
   ghcr.io/chopratejas/headroom:latest \
   --mode token --port 8787 --workers 1 \
@@ -43,6 +64,8 @@ docker run -d --name headroom --restart unless-stopped -p 8787:8787 \
   --anthropic-api-url https://api.deepseek.com/anthropic \
   --backend anthropic
 ```
+
+</details>
 
 Verify it's running:
 ```bash
@@ -56,7 +79,7 @@ curl http://localhost:8787/health
 
 ```bash
 git clone https://github.com/diyu331/HeadroomDashboard.git
-cd HeadroomWebUI
+cd HeadroomDashboard
 ```
 
 **All platforms:**
@@ -74,6 +97,8 @@ pip install flask requests
 # 3. Start the server
 python app.py
 ```
+
+> **💡 Tip for Python:** It's recommended to use a virtual environment or Conda (e.g. `conda create -n headroom-dashboard python=3.12 && conda activate headroom-dashboard`) before `pip install` to avoid conflicts with system Python packages.
 
 Open `http://localhost:5000` in your browser.
 
@@ -192,7 +217,7 @@ pip install flask requests
 
 ```bash
 # Start Flask (terminal 1)
-cd D:\developer_tools\HeadroomWebUI
+cd HeadroomDashboard
 python app.py
 
 # Test all API endpoints (terminal 2)
@@ -292,7 +317,7 @@ curl http://localhost:8787/health
 
 ```bash
 git clone https://github.com/diyu331/HeadroomDashboard.git
-cd HeadroomWebUI
+cd HeadroomDashboard
 ```
 
 **手动启动（所有平台）**
