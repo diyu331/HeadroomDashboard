@@ -2,6 +2,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -224,6 +225,25 @@ def check_docker_available():
     return rc == 0
 
 
+_headroom_warmed_up = False
+
+def warmup_headroom_litellm():
+    """发送空请求到 /v1/messages 触发 LiteLLM 预热，消除首次请求的 40s 延迟"""
+    global _headroom_warmed_up
+    if _headroom_warmed_up:
+        return
+    try:
+        requests.post(
+            f"{HEADROOM_API}/v1/messages",
+            json={"model": "claude-sonnet-4-6", "max_tokens": 1, "messages": [{"role": "user", "content": ""}]},
+            headers={"x-api-key": "warmup", "anthropic-version": "2023-06-01"},
+            timeout=60,
+        )
+    except requests.RequestException:
+        pass  # 预热失败很正常（无有效 key），但 LiteLLM 已被触发加载
+    _headroom_warmed_up = True
+
+
 def read_profile():
     try:
         with open(PROFILE_PATH, "r", encoding="utf-8") as f:
@@ -344,6 +364,9 @@ def api_startup_status():
 
     health = get_headroom_health()
     headroom_ready = health.get("status") == "healthy" if isinstance(health, dict) else False
+
+    if headroom_ready and not _headroom_warmed_up:
+        threading.Thread(target=warmup_headroom_litellm, daemon=True).start()
 
     detail = "Headroom 服务就绪" if headroom_ready else "等待 Headroom 服务初始化..."
 
